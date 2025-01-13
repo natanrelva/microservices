@@ -110,6 +110,4 @@ public class ProdutoControllerTest {
         assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
         verify(produtoService, times(1)).deletarProduto(1L);
     }
-
-    // Other test methods...
 }
