@@ -267,3 +267,28 @@ act push -P ubuntu-latest=ghcr.io/catthehacker/ubuntu:act-latest
 ---
 
 Com o **Act**, você pode iterar e testar localmente seus workflows antes de fazer push para o repositório. Isso economiza tempo e reduz o ciclo de desenvolvimento. Se precisar de mais ajuda para configurar ou debugar seus workflows, estarei à disposição!
+
+Exercício 4: Aplicação dos Princípios SOLID
+Descrição:
+
+- Revise o código do microsserviço desenvolvido nos exercícios anteriores e refatore-o
+para garantir que ele esteja aderente aos princípios SOLID.
+- Adicione comentários explicando as modificações feitas e como elas melhoram o
+código em termos de design e manutenibilidade.
+
+- Single Responsibility Principle (SRP)
+Antes: ProdutoService lidava com operações de CRUD, mapeamento entre entidades e DTOs, e comunicação com RabbitMQ.
+Depois: Cada responsabilidade foi separada:
+ProdutoMapper: Responsável apenas pelo mapeamento entre entidades e DTOs.
+MessagingService: Responsável apenas pela comunicação com RabbitMQ.
+ProdutoService: Foca apenas na lógica de negócios relacionada aos produtos, delegando outras responsabilidades.
+- Open/Closed Principle (OCP)
+Antes: Qualquer modificação nas funcionalidades de mapeamento ou mensagens exigia mudanças na classe ProdutoService.
+Depois: As classes estão abertas para extensão (poderão ser adicionadas novas implementações de ProdutoMapper ou MessagingService), mas fechadas para modificações, pois não necessitam alterar a ProdutoService.
+- Liskov Substitution Principle (LSP)
+Implementações concretas (ProdutoMapperImpl, RabbitMQService) podem substituir suas respectivas interfaces sem alterar o comportamento esperado do sistema.
+- Interface Segregation Principle (ISP)
+Interfaces específicas (ProdutoMapper, MessagingService) são definidas para evitar que classes clientes dependam de interfaces que não utilizam.
+- Dependency Inversion Principle (DIP)
+ProdutoService depende de abstrações (ProdutoMapper, MessagingService), não de implementações concretas (ProdutoMapperImpl, RabbitMQService).
+Facilita a substituição de implementações, melhora a testabilidade (facilitando o uso de mocks), e promove um acoplamento fraco entre os componentes.

@@ -3,30 +3,47 @@ package com.ada.microservices.products.service;
 import com.ada.microservices.products.dto.ProdutoRequestDTO;
 import com.ada.microservices.products.dto.ProdutoResponseDTO;
 import com.ada.microservices.products.exception.ResourceNotFoundException;
+import com.ada.microservices.products.mapper.ProdutoMapper;
+import com.ada.microservices.products.messaging.MessagingService;
 import com.ada.microservices.products.model.Produto;
 import com.ada.microservices.products.repository.ProdutoRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Serviço para gerenciar produtos.
+ * Serviço para gerenciar produtos, responsável pelas operações de CRUD e comunicação com serviços de mensagens.
+ * 
+ * Cumpre os princípios SOLID:
+ * - **SRP**: Apenas gerencia operações de produtos e delega outras responsabilidades.
+ * - **DIP**: Depende de abstrações (ProdutoMapper e MessagingService) em vez de implementações concretas.
  */
 @Service
 public class ProdutoService {
 
     private final ProdutoRepository produtoRepository;
-    private final RabbitTemplate rabbitTemplate;
+    private final ProdutoMapper produtoMapper;
+    private final MessagingService messagingService;
     private final ObjectMapper objectMapper;
 
-    public ProdutoService(ProdutoRepository produtoRepository, RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
+    /**
+     * Construtor para injeção de dependências.
+     *
+     * @param produtoRepository Repositório de produtos.
+     * @param produtoMapper     Mapper para conversão entre entidades e DTOs.
+     * @param messagingService  Serviço de mensagens para comunicação com RabbitMQ.
+     * @param objectMapper      ObjectMapper para serialização JSON.
+     */
+    public ProdutoService(ProdutoRepository produtoRepository,
+                          ProdutoMapper produtoMapper,
+                          MessagingService messagingService,
+                          ObjectMapper objectMapper) {
         this.produtoRepository = produtoRepository;
-        this.rabbitTemplate = rabbitTemplate;
+        this.produtoMapper = produtoMapper;
+        this.messagingService = messagingService;
         this.objectMapper = objectMapper;
     }
 
@@ -37,19 +54,18 @@ public class ProdutoService {
      * @return DTO de resposta com os dados do produto criado.
      */
     public ProdutoResponseDTO criarProduto(ProdutoRequestDTO dto) {
-        Produto produto = mapRequestToEntity(dto);
-        Produto salvo = produtoRepository.save(produto); // Captura o objeto salvo com o ID
+        // Mapeia DTO para entidade
+        Produto produto = produtoMapper.toEntity(dto);
+        // Salva o produto e obtém o objeto salvo com ID
+        Produto salvo = produtoRepository.save(produto);
 
-        // Convert the saved product to a message and send it to RabbitMQ
-        try {
-            String message = objectMapper.writeValueAsString(salvo);
-            rabbitTemplate.convertAndSend("produtoExchange", "produto.created", message);
-        } catch (JsonProcessingException e) {
-            // Lidar com a exceção apropriadamente
-            throw new RuntimeException("Erro ao serializar mensagem para RabbitMQ", e);
-        }
+        // Serializa o objeto salvo para JSON
+        String message = serializeProduto(salvo);
+        // Envia a mensagem para RabbitMQ
+        messagingService.sendMessage("produtoExchange", "produto.created", message);
 
-        return mapEntityToResponse(salvo); // Mapear o objeto salvo
+        // Mapeia entidade salva para DTO de resposta
+        return produtoMapper.toResponseDTO(salvo);
     }
 
     /**
@@ -61,7 +77,7 @@ public class ProdutoService {
      */
     public ProdutoResponseDTO buscarProdutoPorId(Long id) {
         Produto produto = obterProdutoPorId(id);
-        return mapEntityToResponse(produto);
+        return produtoMapper.toResponseDTO(produto);
     }
 
     /**
@@ -81,8 +97,9 @@ public class ProdutoService {
         produto.setPreco(dto.getPreco());
         produto.setQuantidade(dto.getQuantidade());
 
+        // Salva as alterações
         Produto salvo = produtoRepository.save(produto);
-        return mapEntityToResponse(salvo);
+        return produtoMapper.toResponseDTO(salvo);
     }
 
     /**
@@ -104,43 +121,11 @@ public class ProdutoService {
     public List<ProdutoResponseDTO> listarTodosProdutos() {
         return produtoRepository.findAll()
                 .stream()
-                .map(this::mapEntityToResponse)
+                .map(produtoMapper::toResponseDTO)
                 .collect(Collectors.toList());
     }
 
     // --- Métodos auxiliares ---
-
-    /**
-     * Mapeia uma entidade Produto para um DTO de resposta.
-     *
-     * @param produto Entidade Produto.
-     * @return DTO de resposta.
-     */
-    private ProdutoResponseDTO mapEntityToResponse(Produto produto) {
-        return new ProdutoResponseDTO(
-                produto.getId(),
-                produto.getNome(),
-                produto.getCategoria(),
-                produto.getPreco(),
-                produto.getQuantidade(),
-                produto.getDescricao()
-        );
-    }
-
-    /**
-     * Mapeia um DTO de requisição para uma entidade Produto.
-     *
-     * @param dto DTO de requisição.
-     * @return Entidade Produto.
-     */
-    private Produto mapRequestToEntity(ProdutoRequestDTO dto) {
-        return Produto.builder()
-                .nome(dto.getNome())
-                .categoria(dto.getCategoria())
-                .preco(dto.getPreco())
-                .quantidade(dto.getQuantidade())
-                .build();
-    }
 
     /**
      * Obtém um produto pelo ID ou lança uma exceção.
@@ -152,5 +137,21 @@ public class ProdutoService {
     private Produto obterProdutoPorId(Long id) {
         return produtoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado com ID: " + id));
+    }
+
+    /**
+     * Serializa um objeto Produto para JSON.
+     *
+     * @param produto Produto a ser serializado.
+     * @return String JSON representando o produto.
+     * @throws RuntimeException Se ocorrer um erro durante a serialização.
+     */
+    private String serializeProduto(Produto produto) {
+        try {
+            return objectMapper.writeValueAsString(produto);
+        } catch (JsonProcessingException e) {
+            // Envolve a exceção em uma exceção personalizada para melhor controle
+            throw new RuntimeException("Erro ao serializar produto para JSON", e);
+        }
     }
 }
