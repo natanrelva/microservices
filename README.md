@@ -20,6 +20,7 @@ O projeto consiste nos seguintes microsserviços:
 
 ## Pré-requisitos
 
+- Docker
 - Java 11+
 - Maven
 
@@ -38,6 +39,12 @@ O projeto consiste nos seguintes microsserviços:
     ```sh
     mvn spring-boot:run
     ```
+
+3. Docker
+
+```sh
+docker run -d --name rabbitmq -p 5672:5672 -p 15672:15672 rabbitmq:3-management
+```
 
 ## API RESTful
 

@@ -22,6 +22,18 @@ public class ProdutoResponseDTO {
     @JsonProperty("descricao")
     private String descricao;
 
+    @Override
+        public String toString() {
+            return "ProdutoResponseDTO{" +
+                    "id=" + id +
+                    ", nome='" + nome + '\'' +
+                    ", categoria='" + categoria + '\'' +
+                    ", preco=" + preco +
+                    ", quantidade=" + quantidade +
+                    ", descricao='" + descricao + '\'' +
+                    '}';
+        }
+
     public ProdutoResponseDTO(Long id, String nome, String categoria, Double preco, Integer quantidade, String descricao) {
         this.id = id;
         this.nome = nome;
